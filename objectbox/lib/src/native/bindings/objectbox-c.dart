@@ -98,30 +98,6 @@ class ObjectBoxC {
   late final _dart_has_feature _has_feature =
       _has_feature_ptr.asFunction<_dart_has_feature>();
 
-  /// Check whether functions returning OBX_bytes_array are fully supported (depends on build, invariant during runtime)
-  /// @deprecated use obx_has_feature(OBXFeature_BytesArray) instead
-  bool supports_bytes_array() {
-    return _supports_bytes_array() != 0;
-  }
-
-  late final _supports_bytes_array_ptr =
-      _lookup<ffi.NativeFunction<_c_supports_bytes_array>>(
-          'obx_supports_bytes_array');
-  late final _dart_supports_bytes_array _supports_bytes_array =
-      _supports_bytes_array_ptr.asFunction<_dart_supports_bytes_array>();
-
-  /// Check whether time series functions are available in the version of this library
-  /// @deprecated use obx_has_feature(OBXFeature_TimeSeries) instead
-  bool supports_time_series() {
-    return _supports_time_series() != 0;
-  }
-
-  late final _supports_time_series_ptr =
-      _lookup<ffi.NativeFunction<_c_supports_time_series>>(
-          'obx_supports_time_series');
-  late final _dart_supports_time_series _supports_time_series =
-      _supports_time_series_ptr.asFunction<_dart_supports_time_series>();
-
   /// Delete the store files from the given directory
   int remove_db_files(
     ffi.Pointer<ffi.Int8> directory,
@@ -595,7 +571,7 @@ class ObjectBoxC {
   late final _dart_opt_file_mode _opt_file_mode =
       _opt_file_mode_ptr.asFunction<_dart_opt_file_mode>();
 
-  /// Set the maximum number of readers on the options.
+  /// Set the maximum number of readers (related to read transactions) on the given options.
   /// "Readers" are an finite resource for which we need to define a maximum number upfront.
   /// The default value is enough for most apps and usually you can ignore it completely.
   /// However, if you get the OBX_ERROR_MAX_READERS_EXCEEDED error, you should verify your threading.
@@ -603,7 +579,12 @@ class ObjectBoxC {
   /// Their number (per thread) depends on number of types, relations, and usage patterns.
   /// Thus, if you are working with many threads (e.g. in a server-like scenario), it can make sense to increase the
   /// maximum number of readers.
-  /// Note: The internal default is currently around 120. So when hitting this limit, try values around 200-500.
+  ///
+  /// \note The internal default is currently 126. So when hitting this limit, try values around 200-500.
+  ///
+  /// \attention Each thread that performed a read transaction and is still alive holds on to a reader slot.
+  /// These slots only get vacated when the thread ends. Thus be mindful with the number of active threads.
+  /// Alternatively, you can opt to try the experimental noReaderThreadLocals option flag.
   void opt_max_readers(
     ffi.Pointer<OBX_store_options> opt,
     int max_readers,
@@ -618,6 +599,27 @@ class ObjectBoxC {
       _lookup<ffi.NativeFunction<_c_opt_max_readers>>('obx_opt_max_readers');
   late final _dart_opt_max_readers _opt_max_readers =
       _opt_max_readers_ptr.asFunction<_dart_opt_max_readers>();
+
+  /// Disables the usage of thread locals for "readers" related to read transactions.
+  /// This can make sense if you are using a lot of threads that are kept alive.
+  /// \note This is still experimental, as it comes with subtle behavior changes at a low level and may affect
+  /// corner cases with e.g. transactions, which may not be fully tested at the moment.
+  void opt_no_reader_thread_locals(
+    ffi.Pointer<OBX_store_options> opt,
+    bool flag,
+  ) {
+    return _opt_no_reader_thread_locals(
+      opt,
+      flag ? 1 : 0,
+    );
+  }
+
+  late final _opt_no_reader_thread_locals_ptr =
+      _lookup<ffi.NativeFunction<_c_opt_no_reader_thread_locals>>(
+          'obx_opt_no_reader_thread_locals');
+  late final _dart_opt_no_reader_thread_locals _opt_no_reader_thread_locals =
+      _opt_no_reader_thread_locals_ptr
+          .asFunction<_dart_opt_no_reader_thread_locals>();
 
   /// Set the model on the options. The default is no model.
   /// NOTE: the model is always freed by this function, including when an error occurs.
@@ -5129,201 +5131,219 @@ class ObjectBoxC {
   late final _dart_posix_sem_prefix_set _posix_sem_prefix_set =
       _posix_sem_prefix_set_ptr.asFunction<_dart_posix_sem_prefix_set>();
 
-  /// Create a default set of browser options.
+  /// Create a default set of admin options.
   /// @returns NULL on failure, a default set of options on success
-  ffi.Pointer<OBX_browser_options> browser_opt() {
-    return _browser_opt();
+  ffi.Pointer<OBX_admin_options> admin_opt() {
+    return _admin_opt();
   }
 
-  late final _browser_opt_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt>>('obx_browser_opt');
-  late final _dart_browser_opt _browser_opt =
-      _browser_opt_ptr.asFunction<_dart_browser_opt>();
+  late final _admin_opt_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt>>('obx_admin_opt');
+  late final _dart_admin_opt _admin_opt =
+      _admin_opt_ptr.asFunction<_dart_admin_opt>();
 
-  /// Set the store on the options. Default is empty, i.e. multi-store mode.
-  /// You can either give an existing (open) OBX_store* or path to directory where a store data is located.
-  /// If both params are NULL, a multi-store mode is used (this is also the default if this function isn't called at all).
-  int browser_opt_store(
-    ffi.Pointer<OBX_browser_options> opt,
+  /// Configure admin with an existing, open OBX_store*.
+  /// @see also obx_admin_opt_store_path() as an alternative.
+  int admin_opt_store(
+    ffi.Pointer<OBX_admin_options> opt,
     ffi.Pointer<OBX_store> store,
-    ffi.Pointer<ffi.Int8> dir,
   ) {
-    return _browser_opt_store(
+    return _admin_opt_store(
       opt,
       store,
-      dir,
     );
   }
 
-  late final _browser_opt_store_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt_store>>(
-          'obx_browser_opt_store');
-  late final _dart_browser_opt_store _browser_opt_store =
-      _browser_opt_store_ptr.asFunction<_dart_browser_opt_store>();
+  late final _admin_opt_store_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_store>>('obx_admin_opt_store');
+  late final _dart_admin_opt_store _admin_opt_store =
+      _admin_opt_store_ptr.asFunction<_dart_admin_opt_store>();
 
-  /// Set the address and port on which the underlying http-server should server the object browser.
+  /// Configure admin with an existing, open OBX_store*.
+  /// @see also obx_admin_opt_store() as an alternative.
+  int admin_opt_store_path(
+    ffi.Pointer<OBX_admin_options> opt,
+    ffi.Pointer<ffi.Int8> directory,
+  ) {
+    return _admin_opt_store_path(
+      opt,
+      directory,
+    );
+  }
+
+  late final _admin_opt_store_path_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_store_path>>(
+          'obx_admin_opt_store_path');
+  late final _dart_admin_opt_store_path _admin_opt_store_path =
+      _admin_opt_store_path_ptr.asFunction<_dart_admin_opt_store_path>();
+
+  /// Set the address and port on which the underlying http-server should server the admin web UI.
   /// Defaults to "http://127.0.0.1:8081"
-  /// @note: you can use for e.g. "http://127.0.0.1:0" for automatic free port assignment - see obx_browser_bound_port().
-  int browser_opt_bind(
-    ffi.Pointer<OBX_browser_options> opt,
+  /// @note: you can use for e.g. "http://127.0.0.1:0" for automatic free port assignment - see obx_admin_bound_port().
+  int admin_opt_bind(
+    ffi.Pointer<OBX_admin_options> opt,
     ffi.Pointer<ffi.Int8> uri,
   ) {
-    return _browser_opt_bind(
+    return _admin_opt_bind(
       opt,
       uri,
     );
   }
 
-  late final _browser_opt_bind_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt_bind>>('obx_browser_opt_bind');
-  late final _dart_browser_opt_bind _browser_opt_bind =
-      _browser_opt_bind_ptr.asFunction<_dart_browser_opt_bind>();
+  late final _admin_opt_bind_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_bind>>('obx_admin_opt_bind');
+  late final _dart_admin_opt_bind _admin_opt_bind =
+      _admin_opt_bind_ptr.asFunction<_dart_admin_opt_bind>();
 
   /// Configure the server to use SSL, with the given certificate.
   /// @param cert_path - the file must be in PEM format, and it must have both private key and certificate (public key).
-  int browser_opt_ssl(
-    ffi.Pointer<OBX_browser_options> opt,
+  int admin_opt_ssl_cert(
+    ffi.Pointer<OBX_admin_options> opt,
     ffi.Pointer<ffi.Int8> cert_path,
   ) {
-    return _browser_opt_ssl(
+    return _admin_opt_ssl_cert(
       opt,
       cert_path,
     );
   }
 
-  late final _browser_opt_ssl_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt_ssl>>('obx_browser_opt_ssl');
-  late final _dart_browser_opt_ssl _browser_opt_ssl =
-      _browser_opt_ssl_ptr.asFunction<_dart_browser_opt_ssl>();
+  late final _admin_opt_ssl_cert_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_ssl_cert>>(
+          'obx_admin_opt_ssl_cert');
+  late final _dart_admin_opt_ssl_cert _admin_opt_ssl_cert =
+      _admin_opt_ssl_cert_ptr.asFunction<_dart_admin_opt_ssl_cert>();
 
   /// Sets the number of worker threads the http-server uses to serve requests. Default: 4
-  int browser_opt_num_threads(
-    ffi.Pointer<OBX_browser_options> opt,
+  int admin_opt_num_threads(
+    ffi.Pointer<OBX_admin_options> opt,
     int num_threads,
   ) {
-    return _browser_opt_num_threads(
+    return _admin_opt_num_threads(
       opt,
       num_threads,
     );
   }
 
-  late final _browser_opt_num_threads_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt_num_threads>>(
-          'obx_browser_opt_num_threads');
-  late final _dart_browser_opt_num_threads _browser_opt_num_threads =
-      _browser_opt_num_threads_ptr.asFunction<_dart_browser_opt_num_threads>();
+  late final _admin_opt_num_threads_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_num_threads>>(
+          'obx_admin_opt_num_threads');
+  late final _dart_admin_opt_num_threads _admin_opt_num_threads =
+      _admin_opt_num_threads_ptr.asFunction<_dart_admin_opt_num_threads>();
 
   /// Disables authentication to make the web app accessible to anyone, e.g. to allow recovery if users have locked
   /// themselves out. Otherwise, if users have been defined, authentication is enforced.
-  int browser_opt_unsecured_no_authentication(
-    ffi.Pointer<OBX_browser_options> opt,
+  int admin_opt_unsecured_no_authentication(
+    ffi.Pointer<OBX_admin_options> opt,
     bool value,
   ) {
-    return _browser_opt_unsecured_no_authentication(
+    return _admin_opt_unsecured_no_authentication(
       opt,
       value ? 1 : 0,
     );
   }
 
-  late final _browser_opt_unsecured_no_authentication_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt_unsecured_no_authentication>>(
-          'obx_browser_opt_unsecured_no_authentication');
-  late final _dart_browser_opt_unsecured_no_authentication
-      _browser_opt_unsecured_no_authentication =
-      _browser_opt_unsecured_no_authentication_ptr
-          .asFunction<_dart_browser_opt_unsecured_no_authentication>();
+  late final _admin_opt_unsecured_no_authentication_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_unsecured_no_authentication>>(
+          'obx_admin_opt_unsecured_no_authentication');
+  late final _dart_admin_opt_unsecured_no_authentication
+      _admin_opt_unsecured_no_authentication =
+      _admin_opt_unsecured_no_authentication_ptr
+          .asFunction<_dart_admin_opt_unsecured_no_authentication>();
 
-  /// Disable user management in the database - this is usually done for local-only database browsers during development.
-  int browser_opt_user_management(
-    ffi.Pointer<OBX_browser_options> opt,
+  /// Disable user management in the database - this is usually only done during development, with local-only access.
+  int admin_opt_user_management(
+    ffi.Pointer<OBX_admin_options> opt,
     bool value,
   ) {
-    return _browser_opt_user_management(
+    return _admin_opt_user_management(
       opt,
       value ? 1 : 0,
     );
   }
 
-  late final _browser_opt_user_management_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt_user_management>>(
-          'obx_browser_opt_user_management');
-  late final _dart_browser_opt_user_management _browser_opt_user_management =
-      _browser_opt_user_management_ptr
-          .asFunction<_dart_browser_opt_user_management>();
+  late final _admin_opt_user_management_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_user_management>>(
+          'obx_admin_opt_user_management');
+  late final _dart_admin_opt_user_management _admin_opt_user_management =
+      _admin_opt_user_management_ptr
+          .asFunction<_dart_admin_opt_user_management>();
+
+  /// Logs request info, e.g. timing for serving a request
+  int admin_opt_log_requests(
+    ffi.Pointer<OBX_admin_options> opt,
+    bool value,
+  ) {
+    return _admin_opt_log_requests(
+      opt,
+      value ? 1 : 0,
+    );
+  }
+
+  late final _admin_opt_log_requests_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_log_requests>>(
+          'obx_admin_opt_log_requests');
+  late final _dart_admin_opt_log_requests _admin_opt_log_requests =
+      _admin_opt_log_requests_ptr.asFunction<_dart_admin_opt_log_requests>();
 
   /// Free the options.
-  /// Note: Only free *unused* options, obx_browser() frees the options internally
-  int browser_opt_free(
-    ffi.Pointer<OBX_browser_options> opt,
+  /// Note: Only free *unused* options, obx_admin() frees the options internally
+  int admin_opt_free(
+    ffi.Pointer<OBX_admin_options> opt,
   ) {
-    return _browser_opt_free(
+    return _admin_opt_free(
       opt,
     );
   }
 
-  late final _browser_opt_free_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_opt_free>>('obx_browser_opt_free');
-  late final _dart_browser_opt_free _browser_opt_free =
-      _browser_opt_free_ptr.asFunction<_dart_browser_opt_free>();
+  late final _admin_opt_free_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_opt_free>>('obx_admin_opt_free');
+  late final _dart_admin_opt_free _admin_opt_free =
+      _admin_opt_free_ptr.asFunction<_dart_admin_opt_free>();
 
   /// Initialize the http-server with the given options.
   /// Note: the given options are always freed by this function, including when an error occurs.
-  /// @param opt required parameter holding the options (see obx_browser_opt_*())
+  /// @param opt required parameter holding the options (see obx_admin_opt_*())
   /// @returns NULL if the operation failed, see functions like obx_last_error_code() to get error details
-  ffi.Pointer<OBX_browser> browser(
-    ffi.Pointer<OBX_browser_options> options,
+  ffi.Pointer<OBX_admin> admin(
+    ffi.Pointer<OBX_admin_options> options,
   ) {
-    return _browser(
+    return _admin(
       options,
     );
   }
 
-  late final _browser_ptr =
-      _lookup<ffi.NativeFunction<_c_browser>>('obx_browser');
-  late final _dart_browser _browser = _browser_ptr.asFunction<_dart_browser>();
+  late final _admin_ptr = _lookup<ffi.NativeFunction<_c_admin>>('obx_admin');
+  late final _dart_admin _admin = _admin_ptr.asFunction<_dart_admin>();
 
   /// Returns a port this server listens on. This is especially useful if the port was assigned arbitrarily
-  /// (a "0" port was used in the URI given to obx_browser_opt_bind()).
-  int browser_port(
-    ffi.Pointer<OBX_browser> browser,
+  /// (a "0" port was used in the URI given to obx_admin_opt_bind()).
+  int admin_port(
+    ffi.Pointer<OBX_admin> admin,
   ) {
-    return _browser_port(
-      browser,
+    return _admin_port(
+      admin,
     );
   }
 
-  late final _browser_port_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_port>>('obx_browser_port');
-  late final _dart_browser_port _browser_port =
-      _browser_port_ptr.asFunction<_dart_browser_port>();
+  late final _admin_port_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_port>>('obx_admin_port');
+  late final _dart_admin_port _admin_port =
+      _admin_port_ptr.asFunction<_dart_admin_port>();
 
   /// Stop the http-server and free all the resources.
-  /// @param browser may be NULL
-  int browser_close(
-    ffi.Pointer<OBX_browser> browser,
+  /// @param admin may be NULL
+  int admin_close(
+    ffi.Pointer<OBX_admin> admin,
   ) {
-    return _browser_close(
-      browser,
+    return _admin_close(
+      admin,
     );
   }
 
-  late final _browser_close_ptr =
-      _lookup<ffi.NativeFunction<_c_browser_close>>('obx_browser_close');
-  late final _dart_browser_close _browser_close =
-      _browser_close_ptr.asFunction<_dart_browser_close>();
-
-  /// Before calling any of the other sync APIs, ensure that those are actually available.
-  /// If the application is linked a non-sync ObjectBox library, this allows you to fail gracefully.
-  /// @return true if this library comes with the sync API
-  /// @deprecated use obx_has_feature(OBXFeature_Sync)
-  bool sync_available() {
-    return _sync_available() != 0;
-  }
-
-  late final _sync_available_ptr =
-      _lookup<ffi.NativeFunction<_c_sync_available>>('obx_sync_available');
-  late final _dart_sync_available _sync_available =
-      _sync_available_ptr.asFunction<_dart_sync_available>();
+  late final _admin_close_ptr =
+      _lookup<ffi.NativeFunction<_c_admin_close>>('obx_admin_close');
+  late final _dart_admin_close _admin_close =
+      _admin_close_ptr.asFunction<_dart_admin_close>();
 
   /// Creates a sync client associated with the given store and sync server URI.
   /// This does not initiate any connection attempts yet: call obx_sync_start() to do so.
@@ -5343,7 +5363,7 @@ class ObjectBoxC {
   late final _sync_1_ptr = _lookup<ffi.NativeFunction<_c_sync_1>>('obx_sync');
   late final _dart_sync_1 _sync_1 = _sync_1_ptr.asFunction<_dart_sync_1>();
 
-  /// Stops and closes (deletes) the sync client freeing its resources.
+  /// Stops and closes (deletes) the sync client, freeing its resources.
   int sync_close(
     ffi.Pointer<OBX_sync> sync_1,
   ) {
@@ -5360,7 +5380,7 @@ class ObjectBoxC {
   /// Sets credentials to authenticate the client with the server.
   /// See OBXSyncCredentialsType for available options.
   /// The accepted OBXSyncCredentials type depends on your sync-server configuration.
-  /// @param data may be NULL, i.e. in combination with OBXSyncCredentialsType_NONE
+  /// @param data may be NULL in combination with OBXSyncCredentialsType_NONE
   int sync_credentials(
     ffi.Pointer<OBX_sync> sync_1,
     int type,
@@ -5422,7 +5442,7 @@ class ObjectBoxC {
   late final _dart_sync_heartbeat_interval _sync_heartbeat_interval =
       _sync_heartbeat_interval_ptr.asFunction<_dart_sync_heartbeat_interval>();
 
-  /// Triggers the heartbeat sending immediately.
+  /// Triggers the heartbeat sending immediately. This lets you check the network connection at any time.
   /// @see obx_sync_heartbeat_interval()
   int sync_send_heartbeat(
     ffi.Pointer<OBX_sync> sync_1,
@@ -5439,7 +5459,7 @@ class ObjectBoxC {
       _sync_send_heartbeat_ptr.asFunction<_dart_sync_send_heartbeat>();
 
   /// Switches operation mode that's initialized after successful login
-  /// Must be called before obx_sync_start (returns OBX_ERROR_ILLEGAL_STATE if it was already started)
+  /// Must be called before obx_sync_start() (returns OBX_ERROR_ILLEGAL_STATE if it was already started)
   int sync_request_updates_mode(
     ffi.Pointer<OBX_sync> sync_1,
     int mode,
@@ -5616,40 +5636,67 @@ class ObjectBoxC {
 
   /// Estimates the current server timestamp based on the last known server time and local steady clock.
   /// @param out_timestamp_ns - unix timestamp in nanoseconds - may be set to zero if the last server's time is unknown.
-  int sync_server_time(
+  int sync_time_server(
     ffi.Pointer<OBX_sync> sync_1,
     ffi.Pointer<ffi.Int64> out_timestamp_ns,
   ) {
-    return _sync_server_time(
+    return _sync_time_server(
       sync_1,
       out_timestamp_ns,
     );
   }
 
-  late final _sync_server_time_ptr =
-      _lookup<ffi.NativeFunction<_c_sync_server_time>>('obx_sync_server_time');
-  late final _dart_sync_server_time _sync_server_time =
-      _sync_server_time_ptr.asFunction<_dart_sync_server_time>();
+  late final _sync_time_server_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_time_server>>('obx_sync_time_server');
+  late final _dart_sync_time_server _sync_time_server =
+      _sync_time_server_ptr.asFunction<_dart_sync_time_server>();
 
   /// Returns the estimated difference between the server time and the local timestamp.
-  /// Equivalent to calculating obx_sync_server_time() - "current time" (nanos since epoch).
+  /// Equivalent to calculating obx_sync_time_server() - "current time" (nanos since epoch).
   /// @param out_diff_ns time difference in nanoseconds; e.g. positive if server time is ahead of local time.
   /// Set to 0 if there has not been a server contact yet and thus the server's time is unknown.
-  int sync_server_time_diff(
+  int sync_time_server_diff(
     ffi.Pointer<OBX_sync> sync_1,
     ffi.Pointer<ffi.Int64> out_diff_ns,
   ) {
-    return _sync_server_time_diff(
+    return _sync_time_server_diff(
       sync_1,
       out_diff_ns,
     );
   }
 
-  late final _sync_server_time_diff_ptr =
-      _lookup<ffi.NativeFunction<_c_sync_server_time_diff>>(
-          'obx_sync_server_time_diff');
-  late final _dart_sync_server_time_diff _sync_server_time_diff =
-      _sync_server_time_diff_ptr.asFunction<_dart_sync_server_time_diff>();
+  late final _sync_time_server_diff_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_time_server_diff>>(
+          'obx_sync_time_server_diff');
+  late final _dart_sync_time_server_diff _sync_time_server_diff =
+      _sync_time_server_diff_ptr.asFunction<_dart_sync_time_server_diff>();
+
+  /// Gets the protocol version this client uses.
+  int sync_protocol_version() {
+    return _sync_protocol_version();
+  }
+
+  late final _sync_protocol_version_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_protocol_version>>(
+          'obx_sync_protocol_version');
+  late final _dart_sync_protocol_version _sync_protocol_version =
+      _sync_protocol_version_ptr.asFunction<_dart_sync_protocol_version>();
+
+  /// Gets the protocol version of the server after a connection is established (or attempted), zero otherwise.
+  int sync_protocol_version_server(
+    ffi.Pointer<OBX_sync> sync_1,
+  ) {
+    return _sync_protocol_version_server(
+      sync_1,
+    );
+  }
+
+  late final _sync_protocol_version_server_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_protocol_version_server>>(
+          'obx_sync_protocol_version_server');
+  late final _dart_sync_protocol_version_server _sync_protocol_version_server =
+      _sync_protocol_version_server_ptr
+          .asFunction<_dart_sync_protocol_version_server>();
 
   /// Set or overwrite a previously set 'connect' listener.
   /// @param listener set NULL to reset
@@ -5800,6 +5847,268 @@ class ObjectBoxC {
   late final _dart_sync_listener_server_time _sync_listener_server_time =
       _sync_listener_server_time_ptr
           .asFunction<_dart_sync_listener_server_time>();
+
+  /// Prepares an ObjectBox Sync Server to run within your application (embedded server) at the given URI.
+  /// Note that you need a special sync edition, which includes the server components. Check https://objectbox.io/sync/.
+  /// This call opens a store with the given options (also see obx_store_open()).
+  /// The server's store is tied to the server itself and is closed when the server is closed.
+  /// Before actually starting the server via obx_sync_server_start(), you can configure:
+  /// - accepted credentials via obx_sync_server_credentials() (always required)
+  /// - SSL certificate info via obx_sync_server_certificate_path() (required if you use wss)
+  /// \note The model given via store_options is also used to verify the compatibility of the models presented by clients.
+  /// E.g. a client with an incompatible model will be rejected during login.
+  /// @param store_options Options for the server's store.
+  /// It is freed automatically (same as with obx_store_open()) - don't use or free it afterwards.
+  /// @param uri The URI (following the pattern protocol:://IP:port) the server should listen on.
+  /// Supported \b protocols are "ws" (WebSockets) and "wss" (secure WebSockets).
+  /// To use the latter ("wss"), you must also call obx_sync_server_certificate_path().
+  /// To bind to all available \b interfaces, including those that are available from the "outside", use 0.0.0.0 as
+  /// the IP. On the other hand, "127.0.0.1" is typically (may be OS dependent) only available on the same device.
+  /// If you do not require a fixed \b port, use 0 (zero) as a port to tell the server to pick an arbitrary port
+  /// that is available. The port can be queried via obx_sync_server_port() once the server was started.
+  /// \b Examples: "ws://0.0.0.0:9999" could be used during development (no certificate config needed),
+  /// while in a production system, you may want to use wss and a specific IP for security reasons.
+  /// @see obx_store_open()
+  /// @returns NULL if server could not be created (e.g. the store could not be opened, bad uri, etc.)
+  ffi.Pointer<OBX_sync_server> sync_server(
+    ffi.Pointer<OBX_store_options> store_options,
+    ffi.Pointer<ffi.Int8> uri,
+  ) {
+    return _sync_server(
+      store_options,
+      uri,
+    );
+  }
+
+  late final _sync_server_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server>>('obx_sync_server');
+  late final _dart_sync_server _sync_server =
+      _sync_server_ptr.asFunction<_dart_sync_server>();
+
+  /// Stops and closes (deletes) the sync server, freeing its resources.
+  /// This includes the store associated with the server; it gets closed and must not be used anymore after this call.
+  int sync_server_close(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_close(
+      server,
+    );
+  }
+
+  late final _sync_server_close_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_close>>(
+          'obx_sync_server_close');
+  late final _dart_sync_server_close _sync_server_close =
+      _sync_server_close_ptr.asFunction<_dart_sync_server_close>();
+
+  /// Gets the store this server uses. This is owned by the server and must NOT be closed manually with obx_store_close().
+  ffi.Pointer<OBX_store> sync_server_store(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_store(
+      server,
+    );
+  }
+
+  late final _sync_server_store_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_store>>(
+          'obx_sync_server_store');
+  late final _dart_sync_server_store _sync_server_store =
+      _sync_server_store_ptr.asFunction<_dart_sync_server_store>();
+
+  /// Sets SSL certificate for the server to use. Use before obx_sync_server_start().
+  int sync_server_certificate_path(
+    ffi.Pointer<OBX_sync_server> server,
+    ffi.Pointer<ffi.Int8> certificate_path,
+  ) {
+    return _sync_server_certificate_path(
+      server,
+      certificate_path,
+    );
+  }
+
+  late final _sync_server_certificate_path_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_certificate_path>>(
+          'obx_sync_server_certificate_path');
+  late final _dart_sync_server_certificate_path _sync_server_certificate_path =
+      _sync_server_certificate_path_ptr
+          .asFunction<_dart_sync_server_certificate_path>();
+
+  /// Sets credentials for the server to accept. Use before obx_sync_server_start().
+  /// @param data may be NULL in combination with OBXSyncCredentialsType_NONE
+  int sync_server_credentials(
+    ffi.Pointer<OBX_sync_server> server,
+    int type,
+    ffi.Pointer<ffi.Uint8> data,
+    int size,
+  ) {
+    return _sync_server_credentials(
+      server,
+      type,
+      data,
+      size,
+    );
+  }
+
+  late final _sync_server_credentials_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_credentials>>(
+          'obx_sync_server_credentials');
+  late final _dart_sync_server_credentials _sync_server_credentials =
+      _sync_server_credentials_ptr.asFunction<_dart_sync_server_credentials>();
+
+  /// Set or overwrite a previously set 'change' listener - provides information about incoming changes.
+  /// @param listener set NULL to reset
+  /// @param listener_arg is a pass-through argument passed to the listener
+  int sync_server_listener_change(
+    ffi.Pointer<OBX_sync_server> server,
+    ffi.Pointer<ffi.NativeFunction<OBX_sync_listener_change>> listener,
+    ffi.Pointer<ffi.Void> listener_arg,
+  ) {
+    return _sync_server_listener_change(
+      server,
+      listener,
+      listener_arg,
+    );
+  }
+
+  late final _sync_server_listener_change_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_listener_change>>(
+          'obx_sync_server_listener_change');
+  late final _dart_sync_server_listener_change _sync_server_listener_change =
+      _sync_server_listener_change_ptr
+          .asFunction<_dart_sync_server_listener_change>();
+
+  /// Set or overwrite a previously set 'objects message' listener to receive application specific data objects.
+  /// @param listener set NULL to reset
+  /// @param listener_arg is a pass-through argument passed to the listener
+  int sync_server_listener_msg_objects(
+    ffi.Pointer<OBX_sync_server> server,
+    ffi.Pointer<ffi.NativeFunction<OBX_sync_listener_msg_objects>> listener,
+    ffi.Pointer<ffi.Void> listener_arg,
+  ) {
+    return _sync_server_listener_msg_objects(
+      server,
+      listener,
+      listener_arg,
+    );
+  }
+
+  late final _sync_server_listener_msg_objects_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_listener_msg_objects>>(
+          'obx_sync_server_listener_msg_objects');
+  late final _dart_sync_server_listener_msg_objects
+      _sync_server_listener_msg_objects = _sync_server_listener_msg_objects_ptr
+          .asFunction<_dart_sync_server_listener_msg_objects>();
+
+  /// After the sync server is fully configured (e.g. credentials), this will actually start the server.
+  /// Once this call returns, the server is ready to accept client connections. Also, port and URL will be available.
+  int sync_server_start(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_start(
+      server,
+    );
+  }
+
+  late final _sync_server_start_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_start>>(
+          'obx_sync_server_start');
+  late final _dart_sync_server_start _sync_server_start =
+      _sync_server_start_ptr.asFunction<_dart_sync_server_start>();
+
+  /// Stops this sync server. Does nothing if it is already stopped.
+  int sync_server_stop(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_stop(
+      server,
+    );
+  }
+
+  late final _sync_server_stop_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_stop>>('obx_sync_server_stop');
+  late final _dart_sync_server_stop _sync_server_stop =
+      _sync_server_stop_ptr.asFunction<_dart_sync_server_stop>();
+
+  /// Whether the server is up and running.
+  bool sync_server_running(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_running(
+          server,
+        ) !=
+        0;
+  }
+
+  late final _sync_server_running_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_running>>(
+          'obx_sync_server_running');
+  late final _dart_sync_server_running _sync_server_running =
+      _sync_server_running_ptr.asFunction<_dart_sync_server_running>();
+
+  /// Returns a URL this server is listening on, including the bound port (see obx_sync_server_port().
+  /// The returned char* is valid until another call to obx_sync_server_url() or the server is closed.
+  ffi.Pointer<ffi.Int8> sync_server_url(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_url(
+      server,
+    );
+  }
+
+  late final _sync_server_url_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_url>>('obx_sync_server_url');
+  late final _dart_sync_server_url _sync_server_url =
+      _sync_server_url_ptr.asFunction<_dart_sync_server_url>();
+
+  /// Returns a port this server listens on. This is especially useful if the port was assigned arbitrarily
+  /// (a "0" port was used in the URI given to obx_sync_server()).
+  int sync_server_port(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_port(
+      server,
+    );
+  }
+
+  late final _sync_server_port_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_port>>('obx_sync_server_port');
+  late final _dart_sync_server_port _sync_server_port =
+      _sync_server_port_ptr.asFunction<_dart_sync_server_port>();
+
+  /// Returns the number of clients connected to this server.
+  int sync_server_connections(
+    ffi.Pointer<OBX_sync_server> server,
+  ) {
+    return _sync_server_connections(
+      server,
+    );
+  }
+
+  late final _sync_server_connections_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_connections>>(
+          'obx_sync_server_connections');
+  late final _dart_sync_server_connections _sync_server_connections =
+      _sync_server_connections_ptr.asFunction<_dart_sync_server_connections>();
+
+  /// Get server runtime statistics.
+  /// The returned char* is valid until another call to obx_sync_server_stats_string() or the server is closed.
+  ffi.Pointer<ffi.Int8> sync_server_stats_string(
+    ffi.Pointer<OBX_sync_server> server,
+    bool include_zero_values,
+  ) {
+    return _sync_server_stats_string(
+      server,
+      include_zero_values ? 1 : 0,
+    );
+  }
+
+  late final _sync_server_stats_string_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_stats_string>>(
+          'obx_sync_server_stats_string');
+  late final _dart_sync_server_stats_string _sync_server_stats_string =
+      _sync_server_stats_string_ptr
+          .asFunction<_dart_sync_server_stats_string>();
 
   /// Initializes Dart API - call before any other obx_dart_* functions.
   int dartc_init_api(
@@ -6124,8 +6433,8 @@ abstract class OBXFeature {
   /// Check whether debug log can be enabled during runtime.
   static const int DebugLog = 4;
 
-  /// HTTP server with a database browser.
-  static const int ObjectBrowser = 5;
+  /// Administration interface (HTTP server) with a database browser.
+  static const int Admin = 5;
 
   /// Tree & GraphQL support
   static const int Tree = 6;
@@ -6442,10 +6751,10 @@ class OBX_query_prop extends ffi.Opaque {}
 /// See obx_observe(), or obx_observe_single_type() to listen to a changes that affect a single entity type
 class OBX_observer extends ffi.Opaque {}
 
-class OBX_browser_options extends ffi.Opaque {}
+class OBX_admin_options extends ffi.Opaque {}
 
-/// Object data browser is a web application, exposed over http(s)
-class OBX_browser extends ffi.Opaque {}
+/// Admin web UI
+class OBX_admin extends ffi.Opaque {}
 
 class OBX_sync extends ffi.Opaque {}
 
@@ -6488,6 +6797,12 @@ abstract class OBXSyncCode {
   static const int TX_VIOLATED_UNIQUE = 71;
 }
 
+abstract class OBXSyncObjectType {
+  static const int FlatBuffers = 1;
+  static const int String = 2;
+  static const int Raw = 3;
+}
+
 class OBX_sync_change extends ffi.Struct {
   @ffi.Uint32()
   external int entity_id;
@@ -6503,6 +6818,40 @@ class OBX_sync_change_array extends ffi.Struct {
   @ffi.IntPtr()
   external int count;
 }
+
+/// A single data object contained in a OBX_sync_msg_objects message.
+class OBX_sync_object extends ffi.Struct {
+  @ffi.Int32()
+  external int type;
+
+  /// < optional value that the application can use identify the object (may be zero)
+  @ffi.Uint64()
+  external int id;
+
+  /// < Pointer to object data, which is to be interpreted according to its type
+  external ffi.Pointer<ffi.Void> data;
+
+  /// < Size of the object data (including the trailing \0 in case of OBXSyncObjectType_String)
+  @ffi.IntPtr()
+  external int size;
+}
+
+/// Incubating message that carries multiple data "objects" (e.g. FlatBuffers, strings, raw bytes).
+/// Interpretation is up to the application. Does not involve any persistence or delivery guarantees at the moment.
+class OBX_sync_msg_objects extends ffi.Struct {
+  external ffi.Pointer<ffi.Void> topic;
+
+  /// < topic is usually a string, but could also be binary (up to the application)
+  @ffi.IntPtr()
+  external int topic_size;
+
+  external ffi.Pointer<OBX_sync_object> objects;
+
+  @ffi.IntPtr()
+  external int count;
+}
+
+class OBX_sync_server extends ffi.Opaque {}
 
 class OBX_dart_sync_listener extends ffi.Opaque {}
 
@@ -6625,14 +6974,6 @@ typedef _c_has_feature = ffi.Uint8 Function(
 typedef _dart_has_feature = int Function(
   int feature,
 );
-
-typedef _c_supports_bytes_array = ffi.Uint8 Function();
-
-typedef _dart_supports_bytes_array = int Function();
-
-typedef _c_supports_time_series = ffi.Uint8 Function();
-
-typedef _dart_supports_time_series = int Function();
 
 typedef _c_remove_db_files = ffi.Int32 Function(
   ffi.Pointer<ffi.Int8> directory,
@@ -6898,6 +7239,16 @@ typedef _c_opt_max_readers = ffi.Void Function(
 typedef _dart_opt_max_readers = void Function(
   ffi.Pointer<OBX_store_options> opt,
   int max_readers,
+);
+
+typedef _c_opt_no_reader_thread_locals = ffi.Void Function(
+  ffi.Pointer<OBX_store_options> opt,
+  ffi.Uint8 flag,
+);
+
+typedef _dart_opt_no_reader_thread_locals = void Function(
+  ffi.Pointer<OBX_store_options> opt,
+  int flag,
 );
 
 typedef _c_opt_model = ffi.Int32 Function(
@@ -9608,107 +9959,121 @@ typedef _dart_posix_sem_prefix_set = int Function(
   ffi.Pointer<ffi.Int8> prefix,
 );
 
-typedef _c_browser_opt = ffi.Pointer<OBX_browser_options> Function();
+typedef _c_admin_opt = ffi.Pointer<OBX_admin_options> Function();
 
-typedef _dart_browser_opt = ffi.Pointer<OBX_browser_options> Function();
+typedef _dart_admin_opt = ffi.Pointer<OBX_admin_options> Function();
 
-typedef _c_browser_opt_store = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _c_admin_opt_store = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Pointer<OBX_store> store,
-  ffi.Pointer<ffi.Int8> dir,
 );
 
-typedef _dart_browser_opt_store = int Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _dart_admin_opt_store = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Pointer<OBX_store> store,
-  ffi.Pointer<ffi.Int8> dir,
 );
 
-typedef _c_browser_opt_bind = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _c_admin_opt_store_path = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
+  ffi.Pointer<ffi.Int8> directory,
+);
+
+typedef _dart_admin_opt_store_path = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
+  ffi.Pointer<ffi.Int8> directory,
+);
+
+typedef _c_admin_opt_bind = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Pointer<ffi.Int8> uri,
 );
 
-typedef _dart_browser_opt_bind = int Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _dart_admin_opt_bind = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Pointer<ffi.Int8> uri,
 );
 
-typedef _c_browser_opt_ssl = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _c_admin_opt_ssl_cert = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Pointer<ffi.Int8> cert_path,
 );
 
-typedef _dart_browser_opt_ssl = int Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _dart_admin_opt_ssl_cert = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Pointer<ffi.Int8> cert_path,
 );
 
-typedef _c_browser_opt_num_threads = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _c_admin_opt_num_threads = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.IntPtr num_threads,
 );
 
-typedef _dart_browser_opt_num_threads = int Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _dart_admin_opt_num_threads = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
   int num_threads,
 );
 
-typedef _c_browser_opt_unsecured_no_authentication = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _c_admin_opt_unsecured_no_authentication = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Uint8 value,
 );
 
-typedef _dart_browser_opt_unsecured_no_authentication = int Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _dart_admin_opt_unsecured_no_authentication = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
   int value,
 );
 
-typedef _c_browser_opt_user_management = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _c_admin_opt_user_management = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
   ffi.Uint8 value,
 );
 
-typedef _dart_browser_opt_user_management = int Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _dart_admin_opt_user_management = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
   int value,
 );
 
-typedef _c_browser_opt_free = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _c_admin_opt_log_requests = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
+  ffi.Uint8 value,
 );
 
-typedef _dart_browser_opt_free = int Function(
-  ffi.Pointer<OBX_browser_options> opt,
+typedef _dart_admin_opt_log_requests = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
+  int value,
 );
 
-typedef _c_browser = ffi.Pointer<OBX_browser> Function(
-  ffi.Pointer<OBX_browser_options> options,
+typedef _c_admin_opt_free = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin_options> opt,
 );
 
-typedef _dart_browser = ffi.Pointer<OBX_browser> Function(
-  ffi.Pointer<OBX_browser_options> options,
+typedef _dart_admin_opt_free = int Function(
+  ffi.Pointer<OBX_admin_options> opt,
 );
 
-typedef _c_browser_port = ffi.Uint16 Function(
-  ffi.Pointer<OBX_browser> browser,
+typedef _c_admin = ffi.Pointer<OBX_admin> Function(
+  ffi.Pointer<OBX_admin_options> options,
 );
 
-typedef _dart_browser_port = int Function(
-  ffi.Pointer<OBX_browser> browser,
+typedef _dart_admin = ffi.Pointer<OBX_admin> Function(
+  ffi.Pointer<OBX_admin_options> options,
 );
 
-typedef _c_browser_close = ffi.Int32 Function(
-  ffi.Pointer<OBX_browser> browser,
+typedef _c_admin_port = ffi.Uint16 Function(
+  ffi.Pointer<OBX_admin> admin,
 );
 
-typedef _dart_browser_close = int Function(
-  ffi.Pointer<OBX_browser> browser,
+typedef _dart_admin_port = int Function(
+  ffi.Pointer<OBX_admin> admin,
 );
 
-typedef _c_sync_available = ffi.Uint8 Function();
+typedef _c_admin_close = ffi.Int32 Function(
+  ffi.Pointer<OBX_admin> admin,
+);
 
-typedef _dart_sync_available = int Function();
+typedef _dart_admin_close = int Function(
+  ffi.Pointer<OBX_admin> admin,
+);
 
 typedef _c_sync_1 = ffi.Pointer<OBX_sync> Function(
   ffi.Pointer<OBX_store> store,
@@ -9852,24 +10217,36 @@ typedef _dart_sync_full = int Function(
   ffi.Pointer<OBX_sync> sync_1,
 );
 
-typedef _c_sync_server_time = ffi.Int32 Function(
+typedef _c_sync_time_server = ffi.Int32 Function(
   ffi.Pointer<OBX_sync> sync_1,
   ffi.Pointer<ffi.Int64> out_timestamp_ns,
 );
 
-typedef _dart_sync_server_time = int Function(
+typedef _dart_sync_time_server = int Function(
   ffi.Pointer<OBX_sync> sync_1,
   ffi.Pointer<ffi.Int64> out_timestamp_ns,
 );
 
-typedef _c_sync_server_time_diff = ffi.Int32 Function(
+typedef _c_sync_time_server_diff = ffi.Int32 Function(
   ffi.Pointer<OBX_sync> sync_1,
   ffi.Pointer<ffi.Int64> out_diff_ns,
 );
 
-typedef _dart_sync_server_time_diff = int Function(
+typedef _dart_sync_time_server_diff = int Function(
   ffi.Pointer<OBX_sync> sync_1,
   ffi.Pointer<ffi.Int64> out_diff_ns,
+);
+
+typedef _c_sync_protocol_version = ffi.Uint32 Function();
+
+typedef _dart_sync_protocol_version = int Function();
+
+typedef _c_sync_protocol_version_server = ffi.Uint32 Function(
+  ffi.Pointer<OBX_sync> sync_1,
+);
+
+typedef _dart_sync_protocol_version_server = int Function(
+  ffi.Pointer<OBX_sync> sync_1,
 );
 
 typedef OBX_sync_listener_connect = ffi.Void Function(
@@ -9985,6 +10362,143 @@ typedef _dart_sync_listener_server_time = void Function(
   ffi.Pointer<OBX_sync> sync_1,
   ffi.Pointer<ffi.NativeFunction<OBX_sync_listener_server_time>> listener,
   ffi.Pointer<ffi.Void> listener_arg,
+);
+
+typedef _c_sync_server = ffi.Pointer<OBX_sync_server> Function(
+  ffi.Pointer<OBX_store_options> store_options,
+  ffi.Pointer<ffi.Int8> uri,
+);
+
+typedef _dart_sync_server = ffi.Pointer<OBX_sync_server> Function(
+  ffi.Pointer<OBX_store_options> store_options,
+  ffi.Pointer<ffi.Int8> uri,
+);
+
+typedef _c_sync_server_close = ffi.Int32 Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_close = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_store = ffi.Pointer<OBX_store> Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_store = ffi.Pointer<OBX_store> Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_certificate_path = ffi.Int32 Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<ffi.Int8> certificate_path,
+);
+
+typedef _dart_sync_server_certificate_path = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<ffi.Int8> certificate_path,
+);
+
+typedef _c_sync_server_credentials = ffi.Int32 Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Int32 type,
+  ffi.Pointer<ffi.Uint8> data,
+  ffi.IntPtr size,
+);
+
+typedef _dart_sync_server_credentials = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+  int type,
+  ffi.Pointer<ffi.Uint8> data,
+  int size,
+);
+
+typedef _c_sync_server_listener_change = ffi.Int32 Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<ffi.NativeFunction<OBX_sync_listener_change>> listener,
+  ffi.Pointer<ffi.Void> listener_arg,
+);
+
+typedef _dart_sync_server_listener_change = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<ffi.NativeFunction<OBX_sync_listener_change>> listener,
+  ffi.Pointer<ffi.Void> listener_arg,
+);
+
+typedef OBX_sync_listener_msg_objects = ffi.Void Function(
+  ffi.Pointer<ffi.Void>,
+  ffi.Pointer<OBX_sync_msg_objects>,
+);
+
+typedef _c_sync_server_listener_msg_objects = ffi.Int32 Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<ffi.NativeFunction<OBX_sync_listener_msg_objects>> listener,
+  ffi.Pointer<ffi.Void> listener_arg,
+);
+
+typedef _dart_sync_server_listener_msg_objects = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<ffi.NativeFunction<OBX_sync_listener_msg_objects>> listener,
+  ffi.Pointer<ffi.Void> listener_arg,
+);
+
+typedef _c_sync_server_start = ffi.Int32 Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_start = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_stop = ffi.Int32 Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_stop = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_running = ffi.Uint8 Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_running = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_url = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_url = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_port = ffi.Uint16 Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_port = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_connections = ffi.Uint64 Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _dart_sync_server_connections = int Function(
+  ffi.Pointer<OBX_sync_server> server,
+);
+
+typedef _c_sync_server_stats_string = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Uint8 include_zero_values,
+);
+
+typedef _dart_sync_server_stats_string = ffi.Pointer<ffi.Int8> Function(
+  ffi.Pointer<OBX_sync_server> server,
+  int include_zero_values,
 );
 
 typedef _c_dartc_init_api = ffi.Int32 Function(

@@ -11,30 +11,30 @@ void main() {
   late TestEnv env;
 
   setUp(() {
-    env = TestEnv('browser');
+    env = TestEnv('admin');
   });
 
   tearDown(() => env.close());
 
-  test('browser', () async {
+  test('admin', () async {
     env.box.put(TestEntity.filled());
 
-    final browser = Browser(env.store);
+    final admin = Admin(env.store);
 
     // Check that it serves requests and has correct permissions configured.
     final response = await HttpClient()
-        .get('127.0.0.1', browser.port, '/api/v2/auth-info')
+        .get('127.0.0.1', admin.port, '/api/v2/auth-info')
         .then((request) => request.close());
     expect(response.statusCode, 200);
     expect(await response.transform(utf8.decoder).join(''),
         '{"auth":false,"permissions":{"modelRead":true,"modelWrite":true,"objectsRead":true,"objectsWrite":true,"runtimeRead":true,"runtimeWrite":true}}');
 
-    expect(browser.isClosed(), isFalse);
-    browser.close();
-    expect(browser.isClosed(), isTrue);
-    browser.close(); // does nothing
+    expect(admin.isClosed(), isFalse);
+    admin.close();
+    expect(admin.isClosed(), isTrue);
+    admin.close(); // does nothing
   },
-      skip: Browser.isAvailable()
+      skip: Admin.isAvailable()
           ? null
-          : 'ObjectBrowser is not available in the loaded library');
+          : 'Admin is not available in the loaded library');
 }
