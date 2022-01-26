@@ -1119,7 +1119,9 @@ class ObjectBoxC {
   late final _dart_store_is_open _store_is_open =
       _store_is_open_ptr.asFunction<_dart_store_is_open>();
 
-  /// Get a store previously opened with createShared() matching the given path of the DB directory.
+  /// Attach to a previously opened store matching the path of the DB directory, which was used for opening the store.
+  /// The returned store is a new instance (e.g. different pointer value) with its own lifetime and must also be closed.
+  /// The actual underlying store is only closed when the last store OBX_store instance is closed.
   /// @returns nullptr if no open store was found (i.e. not opened before or already closed)
   ffi.Pointer<OBX_store> store_attach(
     ffi.Pointer<ffi.Int8> path,
@@ -5410,7 +5412,7 @@ class ObjectBoxC {
 
   /// Initialize the http-server with the given options.
   /// Note: the given options are always freed by this function, including when an error occurs.
-  /// @param opt required parameter holding the options (see obx_admin_opt_*())
+  /// @param options required parameter holding the options (see obx_admin_opt_*())
   /// @returns NULL if the operation failed, see functions like obx_last_error_code() to get error details
   ffi.Pointer<OBX_admin> admin(
     ffi.Pointer<OBX_admin_options> options,
@@ -5967,7 +5969,7 @@ class ObjectBoxC {
   /// E.g. a client with an incompatible model will be rejected during login.
   /// @param store_options Options for the server's store.
   /// It is freed automatically (same as with obx_store_open()) - don't use or free it afterwards.
-  /// @param uri The URI (following the pattern protocol:://IP:port) the server should listen on.
+  /// @param uri The URI (following the pattern "protocol://IP:port") the server should listen on.
   /// Supported \b protocols are "ws" (WebSockets) and "wss" (secure WebSockets).
   /// To use the latter ("wss"), you must also call obx_sync_server_certificate_path().
   /// To bind to all available \b interfaces, including those that are available from the "outside", use 0.0.0.0 as
@@ -6217,6 +6219,27 @@ class ObjectBoxC {
   late final _dart_sync_server_stats_string _sync_server_stats_string =
       _sync_server_stats_string_ptr
           .asFunction<_dart_sync_server_stats_string>();
+
+  /// Configure admin with a sync server, attaching the store and enabling custom sync-server functionality in the UI.
+  /// This is a replacement for obx_admin_opt_store() and obx_admin_opt_store_path() - don't set them for the server.
+  /// After configuring, this acts as obx_admin() - see for more details.
+  /// You must use obx_admin_close() to stop & free resources after you're done; obx_sync_server_stop() doesn't do that.
+  /// @param options configuration set up with obx_admin_opt_*. You can pass NULL to use the default options.
+  ffi.Pointer<OBX_admin> sync_server_admin(
+    ffi.Pointer<OBX_sync_server> server,
+    ffi.Pointer<OBX_admin_options> options,
+  ) {
+    return _sync_server_admin(
+      server,
+      options,
+    );
+  }
+
+  late final _sync_server_admin_ptr =
+      _lookup<ffi.NativeFunction<_c_sync_server_admin>>(
+          'obx_sync_server_admin');
+  late final _dart_sync_server_admin _sync_server_admin =
+      _sync_server_admin_ptr.asFunction<_dart_sync_server_admin>();
 
   /// Initializes Dart API - call before any other obx_dart_* functions.
   int dartc_init_api(
@@ -6978,7 +7001,7 @@ const int OBX_VERSION_MAJOR = 0;
 
 const int OBX_VERSION_MINOR = 15;
 
-const int OBX_VERSION_PATCH = 0;
+const int OBX_VERSION_PATCH = 1;
 
 const int OBX_ID_NEW = -1;
 
@@ -10678,6 +10701,16 @@ typedef _c_sync_server_stats_string = ffi.Pointer<ffi.Int8> Function(
 typedef _dart_sync_server_stats_string = ffi.Pointer<ffi.Int8> Function(
   ffi.Pointer<OBX_sync_server> server,
   int include_zero_values,
+);
+
+typedef _c_sync_server_admin = ffi.Pointer<OBX_admin> Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<OBX_admin_options> options,
+);
+
+typedef _dart_sync_server_admin = ffi.Pointer<OBX_admin> Function(
+  ffi.Pointer<OBX_sync_server> server,
+  ffi.Pointer<OBX_admin_options> options,
 );
 
 typedef _c_dartc_init_api = ffi.Int32 Function(
