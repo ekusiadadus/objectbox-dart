@@ -27,6 +27,9 @@ part 'observable.dart';
 /// Represents an ObjectBox database and works together with [Box] to allow
 /// getting and putting.
 class Store {
+  /// The default database path.
+  static const String defaultDatabasePath = 'objectbox';
+
   late final Pointer<OBX_store> _cStore;
   HashMap<int, Type>? _entityTypeById;
   final _boxes = HashMap<Type, Box>();
@@ -50,6 +53,9 @@ class Store {
 
   /// Default value for string query conditions [caseSensitive] argument.
   final bool _queriesCaseSensitiveDefault;
+
+  static String _safeDatabasePath(String? path) =>
+      (path == null || path.isEmpty) ? defaultDatabasePath : path;
 
   /// Creates a BoxStore using the model definition from your
   /// `objectbox.g.dart` file.
@@ -76,10 +82,7 @@ class Store {
       String? macosApplicationGroup})
       : _weak = false,
         _queriesCaseSensitiveDefault = queriesCaseSensitiveDefault,
-        _dbDir = path.context.canonicalize(
-            (directory == null || directory.isEmpty)
-                ? 'objectbox'
-                : directory) {
+        _dbDir = path.context.canonicalize(_safeDatabasePath(directory)) {
     try {
       if (Platform.isMacOS && macosApplicationGroup != null) {
         if (!macosApplicationGroup.endsWith('/')) {
@@ -132,23 +135,7 @@ class Store {
       }
       _cStore = C.store_open(opt);
 
-      try {
-        checkObxPtr(_cStore, 'failed to create store');
-      } on ObjectBoxException catch (e) {
-        // Recognize common problems when trying to open/create a database
-        // 10199 = OBX_ERROR_STORAGE_GENERAL
-        // 13 = permissions denied, 30 = read-only filesystem
-        if (e.message.contains(OBX_ERROR_STORAGE_GENERAL.toString()) &&
-            e.message.contains('Dir does not exist') &&
-            (e.message.endsWith(' (13)') || e.message.endsWith(' (30)'))) {
-          throw ObjectBoxException(e.message +
-              ' - this usually indicates a problem with permissions; '
-                  "if you're using Flutter you may need to use "
-                  'getApplicationDocumentsDirectory() from the path_provider '
-                  'package, see example/README.md');
-        }
-        rethrow;
-      }
+      _checkStorePointer(_cStore);
 
       // Always create _reference, so it can be non-nullable.
       // Ensure we only try to access the store created in the same process.
@@ -218,6 +205,64 @@ class Store {
     if (_cStore.address == 0) {
       throw ArgumentError.value(_cStore.address, 'reference.nativePointer',
           'Given native pointer is empty');
+    }
+  }
+
+  /// Attach to a previously opened store matching the path of the database
+  /// directory, which was used for creating the store. The returned store
+  /// is a new instance (e.g. different pointer value) with its own lifetime
+  /// and must also be closed (e.g. before an isolate exits). The actual
+  /// underlying store is only closed when the last store instance is closed
+  /// (e.g. when the app exits).
+  ///
+  /// Use this if you want to access the same store from multiple isolates.
+  /// This results in two (or more) isolates having access to the same
+  /// underlying native store. Concurrent access is ensured using implicit or
+  /// explicit transactions.
+  Store.attach(this._defs, String? databasePath,
+      {bool queriesCaseSensitiveDefault = true})
+      // _weak = false so store can be closed.
+      : _weak = false,
+        _queriesCaseSensitiveDefault = queriesCaseSensitiveDefault,
+        _dbDir = '' {
+    try {
+      // Not checking if database directory is open as this allows it.
+
+      final path = _safeDatabasePath(databasePath);
+      final pathCStr = path.toNativeUtf8();
+      try {
+        _cStore = C.store_attach(pathCStr.cast());
+      } finally {
+        malloc.free(pathCStr);
+      }
+
+      _checkStorePointer(_cStore);
+
+      // Not setting reference as this is a replacement for obtaining a store
+      // via reference.
+    } catch (e) {
+      _reader.clear();
+      rethrow;
+    }
+  }
+
+  void _checkStorePointer(Pointer cStore) {
+    try {
+      checkObxPtr(cStore, 'failed to create store');
+    } on ObjectBoxException catch (e) {
+      // Recognize common problems when trying to open/create a database
+      // 10199 = OBX_ERROR_STORAGE_GENERAL
+      // 13 = permissions denied, 30 = read-only filesystem
+      if (e.message.contains(OBX_ERROR_STORAGE_GENERAL.toString()) &&
+          e.message.contains('Dir does not exist') &&
+          (e.message.endsWith(' (13)') || e.message.endsWith(' (30)'))) {
+        throw ObjectBoxException(e.message +
+            ' - this usually indicates a problem with permissions; '
+                "if you're using Flutter you may need to use "
+                'getApplicationDocumentsDirectory() from the path_provider '
+                'package, see example/README.md');
+      }
+      rethrow;
     }
   }
 

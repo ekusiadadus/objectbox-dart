@@ -60,6 +60,23 @@ void main() {
     env.close();
   });
 
+  test('store attach', () {
+    final env = TestEnv('basics');
+    final store1 = env.store;
+    final store2 = Store.attach(getObjectBoxModel(), env.dir.path);
+    expect(store1, isNot(store2));
+    expect(InternalStoreAccess.ptr(store1),
+        isNot(InternalStoreAccess.ptr(store2)));
+
+    final id = store1.box<TestEntity>().put(TestEntity(tString: 'foo'));
+    expect(id, 1);
+    final read = store2.box<TestEntity>().get(id);
+    expect(read, isNotNull);
+    expect(read!.tString, 'foo');
+    store2.close();
+    env.close();
+  });
+
   test('transactions', () {
     final env = TestEnv('basics');
     expect(TxMode.values.length, 2);
