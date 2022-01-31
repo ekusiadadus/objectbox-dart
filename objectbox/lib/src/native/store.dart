@@ -266,6 +266,17 @@ class Store {
     }
   }
 
+  /// Returns if an open store was found for the given directory
+  /// (i.e. opened before and not yet closed).
+  static bool isOpen(String directory) {
+    final cStr = directory.toNativeUtf8();
+    try {
+      return C.store_is_open(cStr.cast());
+    } finally {
+      malloc.free(cStr);
+    }
+  }
+
   /// Returns a store reference you can use to create a new store instance with
   /// a single underlying native store. See [Store.fromReference] for more details.
   ByteData get reference => _reference;

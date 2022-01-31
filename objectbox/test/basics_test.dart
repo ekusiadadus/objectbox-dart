@@ -77,6 +77,15 @@ void main() {
     env.close();
   });
 
+  test('store is open', () {
+    expect(false, Store.isOpen(''));
+    expect(false, Store.isOpen('testdata-basics'));
+    final env = TestEnv('basics');
+    expect(true, Store.isOpen('testdata-basics'));
+    env.close();
+    expect(false, Store.isOpen('testdata-basics'));
+  });
+
   test('transactions', () {
     final env = TestEnv('basics');
     expect(TxMode.values.length, 2);
